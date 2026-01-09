@@ -34,6 +34,7 @@ export function useGameSession(serverUrl: string, classCode: string) {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [score, setScore] = useState(0);
   const [queueSize, setQueueSize] = useState(0);
+  const [groupSize, setGroupSize] = useState(4);
   const [lastResult, setLastResult] = useState<RoundResult | null>(null);
   const [finalScores, setFinalScores] = useState<Record<string, number>>({});
   const [groupTotal, setGroupTotal] = useState(0);
@@ -53,8 +54,10 @@ export function useGameSession(serverUrl: string, classCode: string) {
       socket.emit('join_queue', { classCode });
     });
 
-    socket.on('queue_update', (data: { queueSize: number }) => {
+    socket.on('queue_update', (data: { queueSize: number; gameMode?: GameMode; groupSize?: number }) => {
       setQueueSize(data.queueSize);
+      if (data.gameMode) setGameMode(data.gameMode);
+      if (data.groupSize) setGroupSize(data.groupSize);
     });
 
     socket.on('match_found', (data: { sessionId: string; players: string[]; yourId: string; gameMode: GameMode }) => {
@@ -173,6 +176,7 @@ export function useGameSession(serverUrl: string, classCode: string) {
     hasSubmitted,
     score,
     queueSize,
+    groupSize,
     lastResult,
     finalScores,
     groupTotal,

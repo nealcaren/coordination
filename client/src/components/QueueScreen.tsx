@@ -1,9 +1,12 @@
 interface QueueScreenProps {
   queueSize: number;
   classCode: string;
+  groupSize: number;
 }
 
-export function QueueScreen({ queueSize, classCode }: QueueScreenProps) {
+export function QueueScreen({ queueSize, classCode, groupSize }: QueueScreenProps) {
+  const othersNeeded = groupSize - 1;
+
   return (
     <div className="queue-screen">
       <div className="queue-content">
@@ -13,7 +16,7 @@ export function QueueScreen({ queueSize, classCode }: QueueScreenProps) {
           {queueSize === 0 ? 'Looking for players' : `${queueSize} player${queueSize === 1 ? '' : 's'} waiting`}
         </p>
         <p className="class-code">Class: {classCode}</p>
-        <p className="instruction">You'll be matched with 3 other students shortly</p>
+        <p className="instruction">You'll be matched with {othersNeeded} other student{othersNeeded === 1 ? '' : 's'} shortly</p>
       </div>
     </div>
   );

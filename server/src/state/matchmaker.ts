@@ -40,6 +40,13 @@ export class Matchmaker {
   }
 
   /**
+   * Get the current game mode
+   */
+  getGameMode(): GameMode {
+    return this.gameMode;
+  }
+
+  /**
    * Add a player to the matchmaking queue
    */
   joinQueue(playerId: string, classCode: string): void {

@@ -8,9 +8,15 @@ import { Move, GameMode, GAME_MODES } from '../../../shared/types';
 const ROUND_DURATION_MS = 18000; // 18 seconds
 const RESULTS_DISPLAY_MS = 10000;  // 10 seconds (longer to see leaderboard)
 
+// Track connected players globally (shared across all runs)
+const globalConnectedPlayers: Map<string, { socket: Socket; classCode: string; runId: string }> = new Map();
+
+// Track runs and their matchmakers
+const runMatchmakers: Map<string, { matchmaker: Matchmaker; gameMode: GameMode }> = new Map();
+
 export class GameSocketHandler {
   private roundTimer: RoundTimer;
-  private connectedPlayers: Map<string, { socket: Socket; classCode: string }> = new Map();
+  private static initialized = false;
 
   constructor(
     private io: SocketIOServer,
@@ -22,7 +28,17 @@ export class GameSocketHandler {
       onTimeout: this.handleRoundTimeout.bind(this),
     });
 
-    this.setupSocketHandlers();
+    // Register this run's matchmaker
+    runMatchmakers.set(runId, {
+      matchmaker,
+      gameMode: matchmaker.getGameMode ? matchmaker.getGameMode() : 'classic'
+    });
+
+    // Only set up socket handlers once (singleton pattern)
+    if (!GameSocketHandler.initialized) {
+      GameSocketHandler.initialized = true;
+      this.setupSocketHandlers();
+    }
   }
 
   private setupSocketHandlers(): void {
@@ -32,29 +48,47 @@ export class GameSocketHandler {
       // Join queue
       socket.on('join_queue', async (data: { classCode: string; displayName?: string }) => {
         try {
-          const { classCode, displayName } = data;
+          const { classCode } = data;
 
-          // Track connection
-          this.connectedPlayers.set(socket.id, { socket, classCode });
+          // Find the run for this class code
+          const runInfo = await this.findRunByClassCode(classCode);
+          if (!runInfo) {
+            socket.emit('error', { message: 'Invalid class code' });
+            return;
+          }
+
+          const { runId, matchmaker, gameMode } = runInfo;
+
+          // Track connection with runId
+          globalConnectedPlayers.set(socket.id, { socket, classCode, runId });
+
+          // Join class code room for broadcasts
+          socket.join(`class:${classCode}`);
 
           // Add to matchmaking queue
-          this.matchmaker.joinQueue(socket.id, classCode);
+          matchmaker.joinQueue(socket.id, classCode);
 
-          // Send queue update
-          socket.emit('queue_update', {
-            queueSize: this.matchmaker.getQueueSize(classCode)
+          const groupSize = GAME_MODES[gameMode].groupSize;
+          const queueSize = matchmaker.getQueueSize(classCode);
+
+          // Broadcast queue update to ALL players in this class
+          this.io.to(`class:${classCode}`).emit('queue_update', {
+            queueSize,
+            gameMode,
+            groupSize
           });
 
           // Try to match
-          const session = await this.matchmaker.attemptMatch(classCode);
+          const session = await matchmaker.attemptMatch(classCode);
 
           if (session) {
             // Notify all players in the session
             for (const playerId of session.players) {
-              const playerSocket = this.connectedPlayers.get(playerId)?.socket;
-              if (playerSocket) {
-                playerSocket.join(`session:${session.id}`);
-                playerSocket.emit('match_found', {
+              const playerInfo = globalConnectedPlayers.get(playerId);
+              if (playerInfo) {
+                playerInfo.socket.join(`session:${session.id}`);
+                playerInfo.socket.leave(`class:${classCode}`); // Leave queue room
+                playerInfo.socket.emit('match_found', {
                   sessionId: session.id,
                   players: session.players,
                   yourId: playerId,
@@ -62,6 +96,14 @@ export class GameSocketHandler {
                 });
               }
             }
+
+            // Broadcast updated queue size to remaining players
+            const newQueueSize = matchmaker.getQueueSize(classCode);
+            this.io.to(`class:${classCode}`).emit('queue_update', {
+              queueSize: newQueueSize,
+              gameMode,
+              groupSize
+            });
 
             // Start round 1
             await this.startRound(session.id, 1);
@@ -102,20 +144,39 @@ export class GameSocketHandler {
         try {
           const { classCode } = data;
 
-          this.matchmaker.joinQueue(socket.id, classCode);
+          const runInfo = await this.findRunByClassCode(classCode);
+          if (!runInfo) {
+            socket.emit('error', { message: 'Invalid class code' });
+            return;
+          }
 
-          socket.emit('queue_update', {
-            queueSize: this.matchmaker.getQueueSize(classCode)
+          const { runId, matchmaker, gameMode } = runInfo;
+
+          // Update tracking
+          globalConnectedPlayers.set(socket.id, { socket, classCode, runId });
+          socket.join(`class:${classCode}`);
+
+          matchmaker.joinQueue(socket.id, classCode);
+
+          const groupSize = GAME_MODES[gameMode].groupSize;
+          const queueSize = matchmaker.getQueueSize(classCode);
+
+          // Broadcast to all waiting
+          this.io.to(`class:${classCode}`).emit('queue_update', {
+            queueSize,
+            gameMode,
+            groupSize
           });
 
-          const session = await this.matchmaker.attemptMatch(classCode);
+          const session = await matchmaker.attemptMatch(classCode);
 
           if (session) {
             for (const playerId of session.players) {
-              const playerSocket = this.connectedPlayers.get(playerId)?.socket;
-              if (playerSocket) {
-                playerSocket.join(`session:${session.id}`);
-                playerSocket.emit('match_found', {
+              const playerInfo = globalConnectedPlayers.get(playerId);
+              if (playerInfo) {
+                playerInfo.socket.join(`session:${session.id}`);
+                playerInfo.socket.leave(`class:${classCode}`);
+                playerInfo.socket.emit('match_found', {
                   sessionId: session.id,
                   players: session.players,
                   yourId: playerId,
@@ -123,6 +184,14 @@ export class GameSocketHandler {
                 });
               }
             }
+
+            // Update remaining queue
+            const newQueueSize = matchmaker.getQueueSize(classCode);
+            this.io.to(`class:${classCode}`).emit('queue_update', {
+              queueSize: newQueueSize,
+              gameMode,
+              groupSize
+            });
 
             await this.startRound(session.id, 1);
           }
@@ -136,16 +205,49 @@ export class GameSocketHandler {
       socket.on('disconnect', () => {
         console.log(`Player disconnected: ${socket.id}`);
 
-        // Remove from queue if present
-        this.matchmaker.leaveQueue(socket.id);
+        const playerInfo = globalConnectedPlayers.get(socket.id);
+        if (playerInfo) {
+          const runData = runMatchmakers.get(playerInfo.runId);
+          if (runData) {
+            runData.matchmaker.leaveQueue(socket.id);
 
-        // Remove from connected players
-        this.connectedPlayers.delete(socket.id);
+            // Broadcast updated queue to remaining players
+            const queueSize = runData.matchmaker.getQueueSize(playerInfo.classCode);
+            const groupSize = GAME_MODES[runData.gameMode].groupSize;
+            this.io.to(`class:${playerInfo.classCode}`).emit('queue_update', {
+              queueSize,
+              gameMode: runData.gameMode,
+              groupSize
+            });
+          }
+        }
 
-        // Note: In production, we'd handle session abandonment here
-        // with a 25-second grace period for reconnection
+        globalConnectedPlayers.delete(socket.id);
       });
     });
+  }
+
+  /**
+   * Find the run info for a given class code
+   */
+  private async findRunByClassCode(classCode: string): Promise<{ runId: string; matchmaker: Matchmaker; gameMode: GameMode } | null> {
+    // Look up the run in the database
+    const db = (this.sessionManager as any).db;
+    const run = await db.get<{ id: string; game_mode: string }>(
+      'SELECT id, game_mode FROM runs WHERE class_code = ? ORDER BY created_at DESC LIMIT 1',
+      [classCode]
+    );
+
+    if (!run) return null;
+
+    const runData = runMatchmakers.get(run.id);
+    if (!runData) return null;
+
+    return {
+      runId: run.id,
+      matchmaker: runData.matchmaker,
+      gameMode: run.game_mode as GameMode
+    };
   }
 
   /**
@@ -269,10 +371,16 @@ export class GameSocketHandler {
   }
 
   /**
-   * Get count of connected players
+   * Get count of connected players for this run
    */
   getConnectedCount(): number {
-    return this.connectedPlayers.size;
+    let count = 0;
+    for (const player of globalConnectedPlayers.values()) {
+      if (player.runId === this.runId) {
+        count++;
+      }
+    }
+    return count;
   }
 
   /**
@@ -280,6 +388,13 @@ export class GameSocketHandler {
    */
   cleanup(): void {
     this.roundTimer.clearAll();
-    this.connectedPlayers.clear();
+    // Remove this run's matchmaker
+    runMatchmakers.delete(this.runId);
+    // Remove players from this run
+    for (const [socketId, player] of globalConnectedPlayers.entries()) {
+      if (player.runId === this.runId) {
+        globalConnectedPlayers.delete(socketId);
+      }
+    }
   }
 }

@@ -80,6 +80,7 @@ function GameApp() {
     hasSubmitted,
     score,
     queueSize,
+    groupSize,
     lastResult,
     groupTotal,
     submitMove,
@@ -130,7 +131,7 @@ function GameApp() {
       )}
 
       {gameState === 'queue' && (
-        <QueueScreen queueSize={queueSize} classCode={classCode} />
+        <QueueScreen queueSize={queueSize} classCode={classCode} groupSize={groupSize} />
       )}
 
       {gameState === 'playing' && (
