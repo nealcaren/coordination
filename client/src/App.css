@@ -303,6 +303,16 @@ body {
   transform: translateY(-2px);
 }
 
+.action-button.green {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.action-button.green:hover {
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+  transform: translateY(-2px);
+}
+
 .action-button:active {
   transform: translateY(0);
 }

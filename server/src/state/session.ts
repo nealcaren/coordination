@@ -14,11 +14,12 @@ export class SessionManager {
   }
 
   /**
-   * Create a new session with 4 players
+   * Create a new session with the required number of players for the game mode
    */
   async createSession(runId: string, playerIds: string[], gameMode: GameMode = 'classic'): Promise<Session> {
-    if (playerIds.length !== 4) {
-      throw new Error('Session requires exactly 4 players');
+    const config = GAME_MODES[gameMode];
+    if (playerIds.length !== config.groupSize) {
+      throw new Error(`Session requires exactly ${config.groupSize} players for ${gameMode} mode`);
     }
 
     const sessionId = this.generateId();

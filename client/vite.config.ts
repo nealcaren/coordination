@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@shared': path.resolve(__dirname, '../shared')
+    }
+  },
   // Allow importing TypeScript files from outside client folder
   build: {
     commonjsOptions: {
@@ -10,7 +16,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: ['../shared/types']
+    include: []
   },
   server: {
     port: 3001,

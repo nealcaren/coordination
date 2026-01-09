@@ -60,6 +60,18 @@ export function RoundScreen({ round, totalRounds, timeRemaining, multiplier, has
                 <span className="button-label">{moveLabels.second}</span>
                 <span className="button-letter">{moves.second}</span>
               </motion.button>
+
+              {moves.third && moveLabels.third && (
+                <motion.button
+                  className="action-button green"
+                  onClick={() => onSubmit(moves.third!)}
+                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.02 }}
+                >
+                  <span className="button-label">{moveLabels.third}</span>
+                  <span className="button-letter">{moves.third}</span>
+                </motion.button>
+              )}
             </div>
           </>
         ) : (
