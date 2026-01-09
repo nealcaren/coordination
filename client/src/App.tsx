@@ -17,7 +17,8 @@ type Route =
 
 // Simple routing based on URL path
 function getRoute(): Route {
-  const path = window.location.pathname;
+  // Normalize path by removing trailing slash
+  const path = window.location.pathname.replace(/\/$/, '') || '/';
   const params = new URLSearchParams(window.location.search);
 
   // Check for admin route
