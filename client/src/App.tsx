@@ -48,11 +48,6 @@ function App() {
     return <AdminPage serverUrl={SERVER_URL} />;
   }
 
-  // Debug: show route info
-  if (window.location.pathname.includes('debug')) {
-    return <div>Route: {JSON.stringify(route)}, Path: {window.location.pathname}</div>;
-  }
-
   // Render dashboard if on dashboard route
   if (route.type === 'dashboard') {
     return (

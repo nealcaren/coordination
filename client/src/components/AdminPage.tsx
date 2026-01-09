@@ -1,6 +1,21 @@
 import { useState } from 'react';
-import { GameMode, GAME_MODES } from '../../../shared/types';
 import './AdminPage.css';
+
+// Game mode types and config (copied from shared/types to avoid import path issues)
+type GameMode = 'classic' | 'consensus' | 'mechanical' | 'solidarity-mechanical' | 'solidarity-organic';
+
+interface GameModeConfig {
+  name: string;
+  totalRounds: number;
+}
+
+const GAME_MODES: Record<GameMode, GameModeConfig> = {
+  classic: { name: 'Contribute or Protect', totalRounds: 8 },
+  consensus: { name: 'Red or Blue', totalRounds: 4 },
+  mechanical: { name: 'Mechanical (Simple)', totalRounds: 4 },
+  'solidarity-mechanical': { name: 'Mechanical Solidarity', totalRounds: 2 },
+  'solidarity-organic': { name: 'Organic Solidarity', totalRounds: 2 }
+};
 
 interface AdminPageProps {
   serverUrl: string;
