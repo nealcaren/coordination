@@ -63,8 +63,8 @@ export function AdminPage({ serverUrl }: AdminPageProps) {
 
       const data = await response.json();
 
-      // Build student URL (same origin, root path)
-      const studentUrl = window.location.origin;
+      // Build student URL with class code
+      const studentUrl = `${window.location.origin}/${data.classCode}`;
 
       setRunInfo({
         runId: data.runId,
