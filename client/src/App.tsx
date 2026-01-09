@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGameSession } from './hooks/useGameSession';
 import { QueueScreen } from './components/QueueScreen';
 import { RoundScreen } from './components/RoundScreen';
@@ -14,13 +14,12 @@ const SERVER_URL = import.meta.env.VITE_SERVER_URL ||
   (import.meta.env.PROD ? window.location.origin : 'http://localhost:3000');
 
 type Route =
-  | { type: 'game' }
+  | { type: 'game'; classCode?: string }
   | { type: 'admin' }
   | { type: 'dashboard'; runId: string; token: string };
 
 // Simple routing based on URL path
 function getRoute(): Route {
-  // Normalize path by removing trailing slash and converting to lowercase
   const rawPath = window.location.pathname;
   const path = rawPath.replace(/\/+$/, '').toLowerCase() || '/';
   const params = new URLSearchParams(window.location.search);
@@ -38,6 +37,12 @@ function getRoute(): Route {
       runId: dashboardMatch[1],
       token: params.get('token') || ''
     };
+  }
+
+  // Check for class code in URL: /SOCI101 or /soci101
+  const classCodeMatch = rawPath.match(/^\/([a-zA-Z0-9]+)$/);
+  if (classCodeMatch && classCodeMatch[1].length >= 3) {
+    return { type: 'game', classCode: classCodeMatch[1].toUpperCase() };
   }
 
   return { type: 'game' };
@@ -62,12 +67,23 @@ function App() {
     );
   }
 
-  return <GameApp />;
+  return <GameApp initialClassCode={route.classCode} />;
 }
 
-function GameApp() {
-  const [classCode, setClassCode] = useState('');
-  const [hasJoined, setHasJoined] = useState(false);
+interface GameAppProps {
+  initialClassCode?: string;
+}
+
+function GameApp({ initialClassCode }: GameAppProps) {
+  const [classCode, setClassCode] = useState(initialClassCode || '');
+  const [hasJoined, setHasJoined] = useState(!!initialClassCode);
+
+  // Auto-join if class code was in URL
+  useEffect(() => {
+    if (initialClassCode) {
+      setHasJoined(true);
+    }
+  }, [initialClassCode]);
 
   const {
     gameState,
@@ -85,14 +101,14 @@ function GameApp() {
     groupTotal,
     submitMove,
     requeue
-  } = useGameSession(SERVER_URL, classCode);
+  } = useGameSession(SERVER_URL, classCode, hasJoined);
 
   if (!hasJoined) {
     return (
       <div className="join-screen">
         <div className="join-content">
-          <h1>Contribute or Protect</h1>
-          <p className="subtitle">A Collective Action Simulation</p>
+          <h1>Coordination Game</h1>
+          <p className="subtitle">A Sociology Simulation</p>
 
           <div className="join-form">
             <label htmlFor="classCode">Enter Class Code:</label>
@@ -109,6 +125,8 @@ function GameApp() {
               onClick={() => {
                 if (classCode.trim()) {
                   setHasJoined(true);
+                  // Update URL without reload
+                  window.history.pushState({}, '', `/${classCode.trim()}`);
                 }
               }}
               disabled={!classCode.trim()}

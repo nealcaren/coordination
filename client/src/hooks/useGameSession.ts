@@ -21,7 +21,7 @@ interface RoundResult {
   deltas: PlayerDelta[];
 }
 
-export function useGameSession(serverUrl: string, classCode: string) {
+export function useGameSession(serverUrl: string, classCode: string, shouldConnect: boolean = false) {
   const [gameState, setGameState] = useState<GameState>('connecting');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -42,15 +42,19 @@ export function useGameSession(serverUrl: string, classCode: string) {
   const socketRef = useRef<Socket | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize socket connection
+  // Initialize socket connection only when shouldConnect is true
   useEffect(() => {
+    if (!shouldConnect || !classCode) {
+      return;
+    }
+
     const socket = io(serverUrl);
     socketRef.current = socket;
 
     socket.on('connect', () => {
       console.log('Connected to server');
       setGameState('queue');
-      // Join queue immediately
+      // Join queue with class code
       socket.emit('join_queue', { classCode });
     });
 
@@ -106,7 +110,7 @@ export function useGameSession(serverUrl: string, classCode: string) {
 
     socket.on('error', (data: { message: string }) => {
       console.error('Socket error:', data.message);
-      alert(`Error: ${data.message}`);
+      // Don't alert for "Invalid class code" as it's handled by showing the form
     });
 
     return () => {
@@ -115,7 +119,7 @@ export function useGameSession(serverUrl: string, classCode: string) {
         clearInterval(timerRef.current);
       }
     };
-  }, [serverUrl, classCode]);
+  }, [serverUrl, classCode, shouldConnect]);
 
   // Timer countdown
   useEffect(() => {
@@ -144,6 +148,7 @@ export function useGameSession(serverUrl: string, classCode: string) {
   const submitMove = (move: Move) => {
     if (!socketRef.current || !sessionId || hasSubmitted) return;
 
+    console.log('Submitting move:', move, 'for session:', sessionId, 'round:', round);
     socketRef.current.emit('submit_move', {
       sessionId,
       round,
