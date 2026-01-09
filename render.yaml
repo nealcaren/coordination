@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: contribute-or-protect
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BASE_URL
+        sync: false  # Set this manually to your Render URL
+      - key: CLIENT_URL
+        sync: false  # Set this manually to your Render URL
+    healthCheckPath: /health
