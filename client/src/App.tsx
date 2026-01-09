@@ -45,7 +45,14 @@ function App() {
 
   // Render admin page
   if (route.type === 'admin') {
-    return <AdminPage serverUrl={SERVER_URL} />;
+    return (
+      <div style={{ padding: '20px', background: 'white' }}>
+        <h1>Admin Page Test</h1>
+        <p>Route matched: admin</p>
+        <p>Path: {window.location.pathname}</p>
+        <AdminPage serverUrl={SERVER_URL} />
+      </div>
+    );
   }
 
   // Render dashboard if on dashboard route
