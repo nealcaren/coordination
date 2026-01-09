@@ -233,10 +233,10 @@ export class GameSocketHandler {
   private async findRunByClassCode(classCode: string): Promise<{ runId: string; matchmaker: Matchmaker; gameMode: GameMode } | null> {
     // Look up the run in the database
     const db = (this.sessionManager as any).db;
-    const run = await db.get<{ id: string; game_mode: string }>(
+    const run = await db.get(
       'SELECT id, game_mode FROM runs WHERE class_code = ? ORDER BY created_at DESC LIMIT 1',
       [classCode]
-    );
+    ) as { id: string; game_mode: string } | undefined;
 
     if (!run) return null;
 
