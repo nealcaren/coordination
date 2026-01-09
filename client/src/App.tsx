@@ -8,7 +8,10 @@ import { InstructorDashboard } from './components/InstructorDashboard';
 import { AdminPage } from './components/AdminPage';
 import './App.css';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
+// In production, client and server are on the same origin
+// In development, use VITE_SERVER_URL or fallback to localhost:3000
+const SERVER_URL = import.meta.env.VITE_SERVER_URL ||
+  (import.meta.env.PROD ? window.location.origin : 'http://localhost:3000');
 
 type Route =
   | { type: 'game' }
