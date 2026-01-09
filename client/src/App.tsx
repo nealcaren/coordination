@@ -17,17 +17,18 @@ type Route =
 
 // Simple routing based on URL path
 function getRoute(): Route {
-  // Normalize path by removing trailing slash
-  const path = window.location.pathname.replace(/\/$/, '') || '/';
+  // Normalize path by removing trailing slash and converting to lowercase
+  const rawPath = window.location.pathname;
+  const path = rawPath.replace(/\/+$/, '').toLowerCase() || '/';
   const params = new URLSearchParams(window.location.search);
 
   // Check for admin route
-  if (path === '/admin') {
+  if (path === '/admin' || path.startsWith('/admin')) {
     return { type: 'admin' };
   }
 
   // Check for dashboard route: /dashboard/{runId}?token={token}
-  const dashboardMatch = path.match(/^\/dashboard\/([a-zA-Z0-9]+)$/);
+  const dashboardMatch = rawPath.match(/^\/dashboard\/([a-zA-Z0-9]+)/i);
   if (dashboardMatch) {
     return {
       type: 'dashboard',
@@ -45,6 +46,11 @@ function App() {
   // Render admin page
   if (route.type === 'admin') {
     return <AdminPage serverUrl={SERVER_URL} />;
+  }
+
+  // Debug: show route info
+  if (window.location.pathname.includes('debug')) {
+    return <div>Route: {JSON.stringify(route)}, Path: {window.location.pathname}</div>;
   }
 
   // Render dashboard if on dashboard route

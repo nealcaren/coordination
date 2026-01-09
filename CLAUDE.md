@@ -4,168 +4,142 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Contribute or Protect: A Collective Action Simulation** is an online, mobile-friendly educational sociology simulation for classroom use. The exercise runs students through an 8-round social dilemma where they are randomly matched into groups of four and must repeatedly choose between two actions (Contribute or Protect) without knowing others' choices in advance. The system is designed to handle 400 concurrent students in a live classroom setting.
+**Coordination Games** is an online, mobile-friendly educational sociology simulation for classroom use. Students are randomly matched into groups and make strategic choices across multiple rounds without knowing others' choices in advance. The system is designed to handle 400 concurrent students in a live classroom setting.
 
-## Core Educational Purpose
+This is a sociology teaching tool, not a game optimization exercise. The simulation reveals social processes: trust formation, norm emergence, collective action problems, and the tension between individual incentives and collective outcomes. All design decisions should preserve ambiguity and let meaning emerge through student experience rather than explicit instruction.
 
-This is a sociology teaching tool, not a game optimization exercise. The simulation is designed to reveal social processes: trust formation, norm emergence, collective action problems, and the tension between individual incentives and collective outcomes. All design decisions should preserve ambiguity and let meaning emerge through student experience rather than explicit instruction.
+## Development Commands
 
-## System Architecture
+```bash
+# Install all dependencies (monorepo with workspaces)
+npm install
 
-### Technology Stack
-- **Backend**: Node.js + Express + Socket.IO for real-time communication
-- **State Management**: Redis for session state, matchmaking queue, and aggregated metrics
-- **Frontend**: React (Vite) or Next.js, mobile-first design
-- **Scale Target**: 400 concurrent students (~100 simultaneous groups)
+# Start both frontend and backend in development mode
+npm run dev
 
-### Performance Requirements
-- Move submit acknowledgment: < 200ms typical
-- Round results broadcast: < 1s after final move or timeout
-- Dashboard refresh: 1-2 seconds without lag
-- Support 2 app instances behind load balancer for redundancy
+# Start only the server (with hot reload)
+npm run dev:server    # runs on port 3000
 
-## Game Mechanics
+# Start only the client (Vite dev server)
+npm run dev:client    # runs on port 3001
 
-### Round Structure
-- **8 total rounds** per session
-- **Round 4**: ×3 multiplier (bonus round)
-- **Round 8**: ×10 multiplier (big bonus round)
-- **Per-round timer**: 18 seconds (configurable)
-- **Results phase**: 4 seconds display
+# Run tests
+npm test              # runs server tests with Jest
 
-### Payoff Schedule
-For a group of 4 players, where x_count is number of "Protect" choices:
-- 4 Protect: each -1
-- 3 Protect + 1 Contribute: each Protect +1, Contribute -3
-- 2 Protect + 2 Contribute: each Protect +2, each Contribute -2
-- 1 Protect + 3 Contribute: Protect +3, each Contribute -1
-- 4 Contribute: each +1
+# Run tests with coverage (90% threshold)
+cd server && npm run test:coverage
 
-### All-Contribute Benchmark
-Per player: 19 points total (rounds 1-3: 3, round 4: 3, rounds 5-7: 3, round 8: 10)
-Per group: 76 points (critical for instructor dashboard comparisons)
+# Run tests in watch mode
+cd server && npm run test:watch
 
-## Terminology
+# Build for production
+npm run build         # builds both server and client
 
-### **IMPORTANT**: Use C/P everywhere, never X/Y
-- **Contribute (C)** = former Y (cooperative choice)
-- **Protect (P)** = former X (self-protective choice)
+# Start production server
+npm start
+```
 
-This terminology is pedagogically intentional: "Protect" sounds reasonable and defensible, which encourages honest post-game discussion without shame.
+## Architecture
 
-### Student-Facing UI
-- Decision buttons: "Contribute (C)" and "Protect (P)"
-- No definitions or hints on decision screen
-- Round results show only: group pattern, individual points, cumulative total
-- **Never show** who made which choice
+### Monorepo Structure
+```
+├── client/           # React frontend (Vite, ESM)
+│   └── src/
+│       ├── components/   # QueueScreen, RoundScreen, ResultsScreen, etc.
+│       └── hooks/        # useGameSession.ts - Socket.IO state management
+├── server/           # Node.js backend (Express, CommonJS)
+│   └── src/
+│       ├── core/         # payoffs.ts, timer.ts
+│       ├── state/        # database.ts, session.ts, matchmaker.ts
+│       └── socket/       # handlers.ts
+└── shared/           # Shared TypeScript types
+    └── types.ts      # GameMode, Move, Session interfaces
+```
 
-### Instructor Dashboard
-Use sociological framing:
-- "% Contribute by Round" / "% Protect by Round"
-- Group outcome patterns (4C, 3C/1P, 2/2, 1C/3P, 4P)
-- Comparison to All-Contribute benchmark
+### Tech Stack
+- **Backend**: Node.js + Express + Socket.IO
+- **Database**: SQLite (file-based, no external dependencies)
+- **Frontend**: React + Vite + TypeScript
+- **Real-time**: Socket.IO for bidirectional communication
+
+### Data Flow
+1. Students join queue via Socket.IO (`join_queue` event)
+2. Matchmaker groups players when queue reaches required size (4 or 6)
+3. Server broadcasts `match_found`, then `round_start` events
+4. Players submit moves; server calculates payoffs in `core/payoffs.ts`
+5. Results broadcast to group; repeat until all rounds complete
+
+## Game Modes
+
+All modes defined in `shared/types.ts` with configuration in `GAME_MODES`:
+
+| Mode | Group Size | Rounds | Moves | Key Concept |
+|------|------------|--------|-------|-------------|
+| `classic` | 4 | 8 | C/P | Collective action dilemma |
+| `consensus` | 4 | 4 | R/B | Coordination game (majority wins) |
+| `mechanical` | 4 | 4 | R/B | Unanimity rewards |
+| `solidarity-mechanical` | 6 | 2 | X/Y/Z | Durkheim - conformity rewarded |
+| `solidarity-organic` | 6 | 2 | X/Y/Z | Durkheim - differentiation rewarded |
+
+### Classic Mode Terminology
+**IMPORTANT**: Use C/P everywhere, never X/Y
+- **Contribute (C)** = cooperative choice
+- **Protect (P)** = self-protective choice
+
+"Protect" sounds reasonable and defensible, encouraging honest post-game discussion without shame.
+
+## Key Files
+
+- `server/src/core/payoffs.ts` - All payoff calculations for all game modes
+- `server/src/state/matchmaker.ts` - Queue management and group formation
+- `server/src/state/session.ts` - Session state management
+- `server/src/socket/handlers.ts` - Socket.IO event handlers
+- `client/src/hooks/useGameSession.ts` - Client-side Socket.IO state
+- `shared/types.ts` - Game mode configurations and TypeScript types
+
+## API Endpoints
+
+```bash
+# Create a new game session
+POST /api/run/create
+{"classCode": "SOCI101", "gameMode": "classic"}
+
+# Get run status
+GET /api/run/:runId/status
+
+# Get dashboard metrics
+GET /api/run/:runId/metrics
+
+# Health check
+GET /health
+```
+
+## Adding a New Game Mode
+
+1. Add mode to `GameMode` type in `shared/types.ts`
+2. Add configuration to `GAME_MODES` object (groupSize, rounds, moves, multipliers)
+3. Create payoff function in `server/src/core/payoffs.ts`
+4. Add routing in `calculatePayoffs()` function
+5. Write tests in `server/tests/payoffs.test.ts`
+6. Update client UI if new move types needed
 
 ## Critical Behavioral Rules
 
 ### Timeout Handling
-- Auto-submit default move (Protect) if no submission within 18 seconds
+- Auto-submit default move (Protect for classic) if no submission within 18 seconds
 - Mark as `auto=true` for metrics tracking
-- Show "% auto-moves" on dashboard
 
 ### Disconnect Handling
 - Allow 25 seconds for reconnection
 - If not reconnected: mark session as `abandoned`
-- Notify remaining players: "Game ended—someone left. Requeue?"
-- Do not bot-replace missing players in MVP
-
-### Matchmaking
-- Random groups of 4 from Redis queue
-- When queue length ≥ 4: pop up to 8, shuffle, take 4, return remainder
-- Optional class code gate to prevent outsiders
-
-## Data Model (Redis Keys)
-
-### Session State
-`session:{session_id}` contains:
-- `players`: array of 4 player_ids
-- `current_round`: 1-8
-- `status`: waiting/in_progress/complete/abandoned
-- `scores`: {player_id: total}
-- `rounds`: {1: {moves:{}, resolved:false}, ...}
-
-### Metrics for Dashboard
-Incremental counters (not recomputed):
-- `metrics:connected_count`
-- `metrics:queue_count`
-- `metrics:active_sessions`
-- `metrics:round:{r}:c_count`, `metrics:round:{r}:p_count`, `metrics:round:{r}:auto_count`
-- `metrics:session_totals` (sorted set for group totals)
-- `metrics:outcome_bins` (counts of patterns like "4C", "3C1P", etc.)
-
-### Multi-Class Support
-Namespace all metrics by `run_id`:
-- `run:{run_id}:metrics:*`
-- Each class session gets unique `class_code` and `run_id`
-
-## Real-Time Events (Socket.IO)
-
-### Client → Server
-- `join_queue` {class_code?, display_name?}
-- `submit_move` {session_id, round, move:"C"|"P"}
-- `requeue` {}
-
-### Server → Client
-- `queue_update` {queue_size}
-- `match_found` {session_id, players, your_id}
-- `round_start` {round, ends_at, multiplier}
-- `move_ack` {round}
-- `round_results` {round, multiplier, pattern, moves, deltas}
-- `game_complete` {final_scores, group_total}
-- `session_abandoned` {reason}
-
-### Server → Dashboard
-- `metrics_update` every 1-2 seconds (or poll `/api/metrics`)
-
-## Instructor Dashboard Requirements
-
-Display in large, projection-friendly format:
-- **Top row**: Connected, in queue, in games (group count), completed, abandoned, auto-move %
-- **Round panel**: %C vs %P for rounds 1-8 (highlight multipliers at 4 and 8)
-- **Outcome distribution**: counts/percentages of 4C, 3C1P, 2C2P, 1C3P, 4P patterns
-- **Score comparisons**: Average/median group totals vs All-Contribute benchmark (76)
-- **Trend visualization**: %Contribute over rounds
+- Notify remaining players with option to requeue
 
 ### Dashboard Security
-Protect with secret token in URL or basic auth (environment variable for MVP)
-
-## Mobile UI Guidelines
-
-### Layout Priorities
-- One-screen gameplay: round/timer at top, large C/P buttons (min 48px height, ~20% screen each)
-- Confirmation state: "Submitted: C"
-- Avoid scroll during active decision period
-- Simple round summary (not detailed tables)
-
-### Network Resilience
-- "Reconnecting..." banner on socket drop
-- On reconnect: rehydrate current round, submission status, time remaining
-
-## Testing Requirements
-
-### Load Testing
-- Simulate 400 clients joining within 60 seconds
-- Each submits 8 moves on schedule
-- Verify: no matchmaking deadlocks, consistent session state, accurate metric counters
-
-### Correctness Testing
-- Payoff calculation for all patterns
-- Multiplier application on rounds 4 and 8
-- Timeout auto-submission behavior
-- Reconnection state restoration
+Dashboard URLs include a secret token: `/dashboard/{runId}?token={token}`
 
 ## Design Philosophy
 
-- **Preserve ambiguity**: The simulation should not tell students how to play or what choices "mean"
-- **Avoid over-engineering**: This is a time-boxed classroom exercise, not a production game platform
-- **Prioritize reliability over features**: Better to have simple functionality that works perfectly for 400 students than complex features that fail under load
-- **Make social forces visible**: The aggregated dashboard data should reveal patterns students experienced individually but couldn't see systemically
+- **Preserve ambiguity**: Don't tell students how to play or what choices "mean"
+- **Avoid over-engineering**: This is a classroom exercise, not a production game platform
+- **Prioritize reliability over features**: Simple functionality that works for 400 students
+- **Make social forces visible**: Dashboard reveals patterns students couldn't see individually
