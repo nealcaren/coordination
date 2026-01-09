@@ -131,7 +131,8 @@ export class SessionManager {
       [sessionId, session.currentRound]
     );
 
-    return moves.length === 4;
+    const config = GAME_MODES[session.gameMode];
+    return moves.length === config.groupSize;
   }
 
   /**
@@ -145,6 +146,7 @@ export class SessionManager {
 
     const round = session.currentRound;
     const gameMode = session.gameMode;
+    const config = GAME_MODES[gameMode];
 
     // Get all moves for this round
     const moveRows = await this.db.all<{ player_id: string; move: string; auto: number }>(
@@ -152,19 +154,19 @@ export class SessionManager {
       [sessionId, round]
     );
 
-    if (moveRows.length !== 4) {
+    if (moveRows.length !== config.groupSize) {
       throw new Error('Not all moves submitted');
     }
 
-    // Calculate payoffs based on game mode
+    // Calculate payoffs based on game mode (pass round for durkheim mode)
     const moves = moveRows.map(m => m.move as Move);
-    const payoffs = calculatePayoffs(moves, gameMode);
+    const payoffs = calculatePayoffs(moves, gameMode, round);
     const multiplier = getMultiplier(round, gameMode);
     const pattern = getGroupPattern(moves, gameMode);
 
     // Count first and second moves (C/P or R/B depending on mode)
     const firstCount = getFirstMoveCount(moves, gameMode);
-    const secondCount = 4 - firstCount;
+    const secondCount = config.groupSize - firstCount;
 
     // Update player scores
     for (let i = 0; i < moveRows.length; i++) {

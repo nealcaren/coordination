@@ -2,10 +2,14 @@ import { Move, PatternType, GameMode, GAME_MODES, SolidarityPatternType } from '
 
 /**
  * Calculate payoffs for a group based on their moves and game mode
+ * @param moves - Array of moves from each player
+ * @param gameMode - The game mode
+ * @param round - Optional round number (required for durkheim mode)
  */
 export function calculatePayoffs(
   moves: Move[],
-  gameMode: GameMode = 'classic'
+  gameMode: GameMode = 'classic',
+  round?: number
 ): Array<{ move: Move; delta: number }> {
   const config = GAME_MODES[gameMode];
 
@@ -24,6 +28,9 @@ export function calculatePayoffs(
   }
   if (gameMode === 'solidarity-organic') {
     return calculateSolidarityOrganicPayoffs(moves);
+  }
+  if (gameMode === 'durkheim') {
+    return calculateDurkheimPayoffs(moves, round || 1);
   }
   return calculateClassicPayoffs(moves);
 }
@@ -248,6 +255,22 @@ function calculateSolidarityOrganicPayoffs(moves: Move[]): Array<{ move: Move; d
 }
 
 /**
+ * Durkheim mode payoffs (8 rounds, 6 players, 3 roles)
+ * Rounds 1-4: Mechanical solidarity rules (conformity rewarded)
+ * Rounds 5-8: Organic solidarity rules (differentiation rewarded)
+ * Players don't know when rules change - they discover through payoffs
+ */
+function calculateDurkheimPayoffs(moves: Move[], round: number): Array<{ move: Move; delta: number }> {
+  // Rounds 1-4: Use mechanical solidarity rules (conformity rewarded)
+  // Rounds 5-8: Use organic solidarity rules (differentiation rewarded)
+  if (round <= 4) {
+    return calculateSolidarityMechanicalPayoffs(moves);
+  } else {
+    return calculateSolidarityOrganicPayoffs(moves);
+  }
+}
+
+/**
  * Get the multiplier for a given round and game mode
  */
 export function getMultiplier(round: number, gameMode: GameMode = 'classic'): number {
@@ -270,7 +293,7 @@ export function applyMultiplier(
  * Classify group outcome pattern based on game mode
  */
 export function getGroupPattern(moves: Move[], gameMode: GameMode = 'classic'): PatternType {
-  if (gameMode === 'solidarity-mechanical' || gameMode === 'solidarity-organic') {
+  if (gameMode === 'solidarity-mechanical' || gameMode === 'solidarity-organic' || gameMode === 'durkheim') {
     // Solidarity modes: 6 players, 3 roles (X, Y, Z)
     const { counts } = getSolidarityRoleCounts(moves);
     const [max, mid, min] = counts;
@@ -370,6 +393,24 @@ export function calculateMaxGroupTotal(gameMode: GameMode = 'classic'): number {
     return total;
   }
 
+  if (gameMode === 'durkheim') {
+    // Rounds 1-4: Mechanical rules (all same role = +3 each)
+    // Rounds 5-8: Organic rules (2-2-2 split = +3 each)
+    // With multipliers at rounds 4 and 8
+    let total = 0;
+    for (let round = 1; round <= config.totalRounds; round++) {
+      const multiplier = config.multiplierRounds[round] || 1;
+      // Optimal play: +3 per player each round
+      total += 3 * 6 * multiplier; // 6 players × 3 points × multiplier
+    }
+    return total; // 18*3 + 18*2 + 18*3 + 18*2 = 54 + 36 + 54 + 36 = 180? Let me recalc
+    // Rounds 1-3: 3*6*1 = 18 each = 54
+    // Round 4: 3*6*2 = 36
+    // Rounds 5-7: 3*6*1 = 18 each = 54
+    // Round 8: 3*6*2 = 36
+    // Total: 54 + 36 + 54 + 36 = 180
+  }
+
   return 0;
 }
 
@@ -392,7 +433,7 @@ export function simulateGame(
 
   for (let round = 1; round <= config.totalRounds; round++) {
     const moves = movesPerRound[round - 1];
-    const payoffs = calculatePayoffs(moves, gameMode);
+    const payoffs = calculatePayoffs(moves, gameMode, round);
 
     payoffs.forEach((payoff, index) => {
       playerScores[index] += applyMultiplier(round, payoff.delta, gameMode);

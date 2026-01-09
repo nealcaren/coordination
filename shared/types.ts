@@ -1,7 +1,7 @@
 // Shared types between client and server
 
 // Game modes
-export type GameMode = 'classic' | 'consensus' | 'mechanical' | 'solidarity-mechanical' | 'solidarity-organic';
+export type GameMode = 'classic' | 'consensus' | 'mechanical' | 'solidarity-mechanical' | 'solidarity-organic' | 'durkheim';
 
 // Moves for each mode
 export type ClassicMove = 'C' | 'P'; // Contribute or Protect
@@ -83,6 +83,17 @@ export const GAME_MODES: Record<GameMode, GameModeConfig> = {
     totalRounds: 2,
     groupSize: 6,
     multiplierRounds: { 2: 2 }, // Second round is bonus
+    moves: { first: 'X', second: 'Y', third: 'Z' },
+    moveLabels: { first: 'Producer', second: 'Distributor', third: 'Regulator' },
+    defaultMove: 'X'
+  },
+  durkheim: {
+    mode: 'durkheim',
+    name: 'Solidarity Game',
+    description: 'Discover how society holds together (8 rounds)',
+    totalRounds: 8,
+    groupSize: 6,
+    multiplierRounds: { 4: 2, 8: 2 }, // Bonus at transition and end
     moves: { first: 'X', second: 'Y', third: 'Z' },
     moveLabels: { first: 'Producer', second: 'Distributor', third: 'Regulator' },
     defaultMove: 'X'

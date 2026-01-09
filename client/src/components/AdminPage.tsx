@@ -2,19 +2,21 @@ import { useState } from 'react';
 import './AdminPage.css';
 
 // Game mode types and config (copied from shared/types to avoid import path issues)
-type GameMode = 'classic' | 'consensus' | 'mechanical' | 'solidarity-mechanical' | 'solidarity-organic';
+type GameMode = 'classic' | 'consensus' | 'mechanical' | 'solidarity-mechanical' | 'solidarity-organic' | 'durkheim';
 
 interface GameModeConfig {
   name: string;
   totalRounds: number;
+  hidden?: boolean; // Hide from dropdown but still support for existing sessions
 }
 
 const GAME_MODES: Record<GameMode, GameModeConfig> = {
-  classic: { name: 'Contribute or Protect', totalRounds: 8 },
-  consensus: { name: 'Red or Blue', totalRounds: 4 },
-  mechanical: { name: 'Mechanical (Simple)', totalRounds: 4 },
+  classic: { name: 'Contribute or Protect', totalRounds: 8, hidden: true },
+  consensus: { name: 'Red or Blue', totalRounds: 4, hidden: true },
+  mechanical: { name: 'Mechanical (Simple)', totalRounds: 4, hidden: true },
   'solidarity-mechanical': { name: 'Mechanical Solidarity', totalRounds: 2 },
-  'solidarity-organic': { name: 'Organic Solidarity', totalRounds: 2 }
+  'solidarity-organic': { name: 'Organic Solidarity', totalRounds: 2 },
+  durkheim: { name: 'Solidarity Game', totalRounds: 8 }
 };
 
 interface AdminPageProps {
@@ -31,7 +33,7 @@ interface RunInfo {
 
 export function AdminPage({ serverUrl }: AdminPageProps) {
   const [classCode, setClassCode] = useState('');
-  const [gameMode, setGameMode] = useState<GameMode>('classic');
+  const [gameMode, setGameMode] = useState<GameMode>('durkheim');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [runInfo, setRunInfo] = useState<RunInfo | null>(null);
@@ -99,7 +101,7 @@ export function AdminPage({ serverUrl }: AdminPageProps) {
   const handleReset = () => {
     setRunInfo(null);
     setClassCode('');
-    setGameMode('classic');
+    setGameMode('durkheim');
     setError(null);
   };
 
@@ -134,16 +136,20 @@ export function AdminPage({ serverUrl }: AdminPageProps) {
                 onChange={(e) => setGameMode(e.target.value as GameMode)}
                 disabled={isCreating}
               >
-                {Object.entries(GAME_MODES).map(([key, config]) => (
+                {Object.entries(GAME_MODES)
+                  .filter(([, config]) => !config.hidden)
+                  .map(([key, config]) => (
                   <option key={key} value={key}>
                     {config.name} ({config.totalRounds} rounds)
                   </option>
                 ))}
               </select>
               <p className="form-hint">
-                {gameMode === 'classic'
-                  ? 'Contribute/Protect - Classic social dilemma (8 rounds)'
-                  : 'Red/Blue - Majority wins consensus game (4 rounds)'}
+                {gameMode === 'durkheim'
+                  ? 'Discover how society holds together - rules shift mid-game'
+                  : gameMode === 'solidarity-mechanical'
+                  ? 'Conformity rewarded - 6 players choose from 3 roles'
+                  : 'Differentiation rewarded - 6 players choose from 3 roles'}
               </p>
             </div>
 
